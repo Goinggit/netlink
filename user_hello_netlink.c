@@ -28,24 +28,7 @@ typedef enum op_code{
 	READ,
 	WRITE
 }op_code;
-int send_to_kernel(int skfd, struct sockaddr_nl * kpeer, 
-	op_code type, struct nlmsghdr* message, void* data)
-{
-	int      ret 		= -1; 
-	message->nlmsg_len  = NLMSG_SPACE(strlen(data));
-	message->nlmsg_type = type;
-	memset(NLMSG_DATA(message), 0, strlen(data) + 1);
-	memcpy(NLMSG_DATA(message), data, strlen(data));
-	ret = sendto(skfd, message, message->nlmsg_len, 0 
-		  		 ,(struct sockaddr *)kpeer, sizeof(kpeer));
-	if(!ret){
-		perror("send pid:");
-		return -1;
-	}
-	printf("message sendto kernel are:%s, len:%d\n", 
-			(char *)NLMSG_DATA(message), message->nlmsg_len);
-	return 0;
-}
+
 int main(int argc, char* argv[]) 
 {
 	//初始化
@@ -55,7 +38,6 @@ int main(int argc, char* argv[])
 	int						ret;
 	int 					kpeerlen  		 = sizeof(struct sockaddr_nl);
 	struct nlmsghdr			*message   		 = (struct nlmsghdr *)malloc(1000);
-	char					*info			 = (char *)malloc(1000);
 	skfd = socket(PF_NETLINK, SOCK_RAW, NETLINK_TEST);
 	if(skfd < 0){
 		printf("can not create a netlink socket\n");
@@ -77,17 +59,33 @@ int main(int argc, char* argv[])
 	kpeer.nl_pid 	= 0;
 	kpeer.nl_groups = 0;
 
+	iov.iov_base 		 = (void *)message;
+	
 	memset(message, 0, sizeof(struct nlmsghdr));
 	message->nlmsg_flags = 0;
 	message->nlmsg_seq   = 0;
+	message->nlmsg_len   = NLMSG_SPACE(strlen("hello"));
 	message->nlmsg_pid   = local.nl_pid;
+	data				 = NLMSG_DATA(message);
+	memcpy(data, "hello", strlen("hello"));
+	iov.iov_len			 = NLMSG_SPACE(strlen("hello"));
+	
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name 	= (void *)&kpeer;
+	msg.msg_namelen = sizeof(kpeer);
+	msg.msg_iov     = &iov;
+	msg.msg_iovlen	= 1;
 
-	send_to_kernel(skfd, &kpeer, READ, message, "going!!!");
-
+	
+	ret = sendmsg(skfd, &msg, 0);
+	if(ret < 0){
+		perror("fail to send: ");
+		return ret;
+	}
+	printf("send %d bit data to kenel\n", ret);
 	//接受内核态确认信息
 
-	ret = recvfrom(skfd, info, 100, 
-					0, (struct sockaddr*)&kpeer, &kpeerlen);
+	ret = recvmsg(skfd, &msg, 0);
 	if(ret <=0 ){
 		if(ret == 0){
 			printf("message end !!!\n");
@@ -99,7 +97,7 @@ int main(int argc, char* argv[])
 	}
 	else{
 		printf("message receive %d bit from kernel\n", ret);
-		struct nlmsghdr *hdr = (struct nlmsghdr *)info;
+		struct nlmsghdr *hdr = (struct nlmsghdr *)msg.msg_iov;
 		struct 	tcmsg * tcm = NLMSG_DATA(hdr);
 		printf("nlmsg_pid =%d \n", hdr->nlmsg_pid);
 		printf("nlmsg_len =%d \n", hdr->nlmsg_len);
@@ -111,7 +109,6 @@ int main(int argc, char* argv[])
 	//内核和用户进行通信
 
 	free(message);
-	free(info);
 	close(skfd);
 	return 0;
 }
