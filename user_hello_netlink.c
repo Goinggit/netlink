@@ -36,6 +36,9 @@ int main(int argc, char* argv[])
 	struct sockaddr_nl 		kpeer;
 	int 					skfd;
 	int						ret;
+	struct iovec 			iov;
+	struct msghdr 			msg;
+	char 					*data;	
 	int 					kpeerlen  		 = sizeof(struct sockaddr_nl);
 	struct nlmsghdr			*message   		 = (struct nlmsghdr *)malloc(1000);
 	skfd = socket(PF_NETLINK, SOCK_RAW, NETLINK_TEST);
