@@ -48,7 +48,7 @@ int send_to_kernel(int skfd, struct sockaddr_nl * kpeer,
 }
 int main(int argc, char* argv[]) 
 {
-    message = (struct nlmsghdr *)malloc(1);
+	//初始化
 	struct sockaddr_nl 		local;
 	struct sockaddr_nl 		kpeer;
 	int 					skfd;
@@ -60,8 +60,8 @@ int main(int argc, char* argv[])
 	if(skfd < 0){
 		printf("can not create a netlink socket\n");
 		return -1;
+	}
 
-    kpeer.nl_groups = 0;
 	memset(&local, 0, sizeof(local));
 	local.nl_family  = AF_NETLINK;
 	local.nl_pid	 = getpid();
@@ -71,8 +71,6 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-    memset(message, '\0', sizeof(struct nlmsghdr));
-    message->nlmsg_pid = local.nl_pid;
 	memset(&kpeer, 0, sizeof(kpeer));
 	/*kpeer.nl_pid 用户空间发往内核空间，必须为0 */
 	kpeer.nl_family = AF_NETLINK;

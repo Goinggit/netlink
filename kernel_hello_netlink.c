@@ -6,7 +6,6 @@
 #include <linux/netlink.h>
 
 #define NETLINK_TEST 17
-    __u32 pid;
 
 static struct sock *netlinkfd = NULL;
 
@@ -26,10 +25,10 @@ int send_to_user(void      *arg) //发送到用户空间
     skb  	 		 = alloc_skb(size, GFP_ATOMIC); 
 	old_tail 		 = skb->tail;
     //初始化一个netlink消息首部
-    nlh = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(strlen(info))-sizeof(struct nlmsghdr), 0); 
     nlh  	 		 = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(sizeof(struct tcmsg))-sizeof(struct nlmsghdr), 0); 
     
 	nlh->nlmsg_pid   = hrd->nlmsg_pid;
+	tcm 			 = nlmsg_data(nlh);
 	tcm->tcm_family	 = AF_UNSPEC;
 	tcm->tcm__pad1	 = 0;
 	tcm->tcm__pad2	 = 0;
