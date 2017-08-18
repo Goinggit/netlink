@@ -1,4 +1,4 @@
-obj-m:=kernel_netlink.o
+obj-m:=kernel_hello_netlink.o
 
 
 CURRENT_PATH :=$(shell pwd)

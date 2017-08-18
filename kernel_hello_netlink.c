@@ -6,60 +6,65 @@
 #include <linux/netlink.h>
 
 #define NETLINK_TEST 17
-struct {
     __u32 pid;
-}user_process;
 
 static struct sock *netlinkfd = NULL;
 
-int send_to_user(char *info) //发送到用户空间
+int send_to_user(void      *arg) //发送到用户空间
 {
-    int size;
-    struct sk_buff *skb;
-    unsigned char *old_tail;
-    struct nlmsghdr *nlh; //报文头
+    int 			size;
+    struct sk_buff  *skb;
+    unsigned int 	old_tail;
+	int 			retval;
+	struct 	tcmsg 	*tcm;
+	struct nlmsghdr *nlh; //报文头
+	struct nlmsghdr *hrd = (struct nlmsghdr *)arg;
 
-    int retval;
-
-    size = NLMSG_SPACE(strlen(info)); //报文大小
-    skb = alloc_skb(size, GFP_ATOMIC); //分配一个新的套接字缓存,使用GFP_ATOMIC标志进程不>会被置为睡眠
-
+	tcm		 		 = (struct 	tcmsg*)kmalloc(sizeof(struct tcmsg), GFP_KERNEL);
+    size 	 		 = NLMSG_SPACE(sizeof(struct tcmsg)); //报文大小
+    //分配一个新的套接字缓存,使用GFP_ATOMIC标志进程不>会被置为睡眠
+    skb  	 		 = alloc_skb(size, GFP_ATOMIC); 
+	old_tail 		 = skb->tail;
     //初始化一个netlink消息首部
     nlh = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(strlen(info))-sizeof(struct nlmsghdr), 0); 
-    old_tail = skb->tail;
-    memcpy(NLMSG_DATA(nlh), info, strlen(info)); //填充数据区
-    nlh->nlmsg_len = (__u32)skb->tail - (__u32)old_tail; //设置消息长度
+    nlh  	 		 = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(sizeof(struct tcmsg))-sizeof(struct nlmsghdr), 0); 
+    
+	nlh->nlmsg_pid   = hrd->nlmsg_pid;
+	tcm->tcm_family	 = AF_UNSPEC;
+	tcm->tcm__pad1	 = 0;
+	tcm->tcm__pad2	 = 0;
+	tcm->tcm_ifindex = 1;
+	tcm->tcm_parent	 = 1001;
+	tcm->tcm_info	 = 1002;
+    nlh->nlmsg_len   = skb->tail - old_tail; //设置消息长度
 
     //设置控制字段
-    NETLINK_CB(skb).portid = 0;
+    NETLINK_CB(skb).portid 	  = 0;
     NETLINK_CB(skb).dst_group = 0;
 
     printk(KERN_DEBUG "[kernel space] skb->data:%s\n", (char *)NLMSG_DATA((struct nlmsghdr *)skb->data));
 
     //发送数据
-    retval = netlink_unicast(netlinkfd, skb, user_process.pid, MSG_DONTWAIT);
+    retval = netlink_unicast(netlinkfd, skb, hrd->nlmsg_pid, MSG_DONTWAIT);
     printk(KERN_DEBUG "[kernel space] netlink_unicast return: %d\n", retval);
     return 0;
 }
 
 void kernel_receive(struct sk_buff *__skb) //内核从用户空间接收数据
 {
-    struct sk_buff *skb;
-    struct nlmsghdr *nlh = NULL;
+    struct sk_buff  *skb;
+    struct nlmsghdr *nlh  = NULL;
 
-    char *data = "This is eric's test message from kernel";
+    char 			*data = "This is eric's test message from kernel";
 
-    printk(KERN_DEBUG "[kernel space] begin kernel_receive\n");
     skb = skb_get(__skb);
 
     if(skb->len >= sizeof(struct nlmsghdr)){
         nlh = (struct nlmsghdr *)skb->data;
         if((nlh->nlmsg_len >= sizeof(struct nlmsghdr))
             && (__skb->len >= nlh->nlmsg_len)){
-            user_process.pid = nlh->nlmsg_pid;
             printk(KERN_DEBUG "[kernel space] data receive from user are:%s\n", (char *)NLMSG_DATA(nlh));
-            printk(KERN_DEBUG "[kernel space] user_pid:%d\n", user_process.pid);
-            send_to_user(data);
+            send_to_user(nlh);
         }
     }else{
         printk(KERN_DEBUG "[kernel space] data receive from user are:%s\n",(char *)NLMSG_DATA(nlmsg_hdr(__skb)));
@@ -93,5 +98,5 @@ void __exit test_netlink_exit(void)
 module_init(test_netlink_init);
 module_exit(test_netlink_exit);
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("eric.hu");
+MODULE_AUTHOR("going");
 
